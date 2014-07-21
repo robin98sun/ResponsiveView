@@ -1,4 +1,4 @@
-ResponsiveUI
-============
+ResponsiveView
+==============
 
-Responsive UI on iOS, including view, view controller and navigation controller.
+Please refer to https://github.com/mrsunlin/ResponsiveView/wiki
