@@ -12,7 +12,9 @@ Support from iOS4 to iOS7
 ***
 
 `Website`   http://mrsunlin.github.io/ResponsiveView 
+
 `wiki`      https://github.com/mrsunlin/ResponsiveView/wiki
+
 `author`    https://www.facebook.com/mrsunlin
 
 # How to use
