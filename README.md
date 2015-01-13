@@ -7,7 +7,7 @@ responsible to events such as rotating, keyboard calling and dismissing etc.
 The framework including view, view controller and navigation controller, 
 view hierarchy and component lifecycle are managed automatically. 
 
-Support from iOS4 to iOS7
+Support from iOS4 to iOS8
 
 ***
 
