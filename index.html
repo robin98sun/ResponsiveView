@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <meta name="description" content="Responsiveview : ">
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>Responsiveview</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/mrsunlin/ResponsiveView">View on GitHub</a>
+
+          <h1 id="project_title">Responsiveview</h1>
+          <h2 id="project_tagline"></h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/mrsunlin/ResponsiveView/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/mrsunlin/ResponsiveView/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>
+<a id="responsiveview" class="anchor" href="#responsiveview" aria-hidden="true"><span class="octicon octicon-link"></span></a>ResponsiveView</h1>
+
+<p>ResponsiveView is responsive UI framework on iOS, providing relative component positioning, 
+responsible to events such as rotating, keyboard calling and dismissing etc. </p>
+
+<p>The framework including view, view controller and navigation controller, 
+view hierarchy and component lifecycle are managed automatically. </p>
+
+<p>Support from iOS4 to iOS8</p>
+
+<hr>
+
+<p><code>Website</code>   <a href="http://mrsunlin.github.io/ResponsiveView">http://mrsunlin.github.io/ResponsiveView</a> </p>
+
+<p><code>wiki</code>      <a href="https://github.com/mrsunlin/ResponsiveView/wiki">https://github.com/mrsunlin/ResponsiveView/wiki</a></p>
+
+<p><code>author</code>    <a href="https://www.facebook.com/mrsunlin">https://www.facebook.com/mrsunlin</a></p>
+
+<h1>
+<a id="how-to-use" class="anchor" href="#how-to-use" aria-hidden="true"><span class="octicon octicon-link"></span></a>How to use</h1>
+
+<h2>
+<a id="step-1-define-classes-and-initialize-root-viewcontroller" class="anchor" href="#step-1-define-classes-and-initialize-root-viewcontroller" aria-hidden="true"><span class="octicon octicon-link"></span></a>Step 1: Define classes and initialize root viewController</h2>
+
+<h3>
+<a id="define-view--viewcontroller-classes" class="anchor" href="#define-view--viewcontroller-classes" aria-hidden="true"><span class="octicon octicon-link"></span></a>Define View &amp; ViewController classes</h3>
+
+<p>Create <code>YourCustomViewController</code> &amp; <code>YourCustomView</code> classes in project. The <code>YourCustomViewController</code> inherit from SLResponsiveViewController, <code>YourCustomView</code> inherit from SLResponsiveView</p>
+
+<p>In <code>YourCustomViewController</code> implementation code (usually <code>.m</code> file), override the method <code>-(void)loadView</code> to assemble the view &amp; viewController:</p>
+
+<pre><code>-(void)loadView{
+    self.view = [[YourCustomView alloc]initWithFrame:self.frame];
+}
+</code></pre>
+
+<h3>
+<a id="customize-initialization-code" class="anchor" href="#customize-initialization-code" aria-hidden="true"><span class="octicon octicon-link"></span></a>Customize initialization code</h3>
+
+<p>The customized initialization code of view &amp; viewController should be in method <code>-(id)initWithFrame:</code>, don't forget the line at the beginning of the method <code>self = [super initWithFrame:frame];</code>:</p>
+
+<pre><code>- (id)initWithFrame:(CGRect)frame{
+    self = [super initWithFrame:frame];
+    if (self) {
+        // Initialization code
+    }
+    return self;
+}
+</code></pre>
+
+<h3>
+<a id="create-instances" class="anchor" href="#create-instances" aria-hidden="true"><span class="octicon octicon-link"></span></a>Create Instances</h3>
+
+<p>All instances, including views &amp; viewControllers, must be initialized by method <code>-(id)initWithFrame:</code>. For root instances, the frame parameter must be a known value; for other instances, the frame could be zero (CGRectZero) when they have responsive constraints.</p>
+
+<p>For root view, it is instanced by the viewController</p>
+
+<pre><code>YourCustomViewController *vc = [[YourCustomViewController alloc] initWithFrame: frame];
+</code></pre>
+
+<p>For custom view component, it can be instanced directly</p>
+
+<pre><code>YourCustomView *view = [[YourCustomView alloc] initWithFrame: frame];
+</code></pre>
+
+<h3>
+<a id="instance-the-root-viewcontroller" class="anchor" href="#instance-the-root-viewcontroller" aria-hidden="true"><span class="octicon octicon-link"></span></a>Instance the root viewController</h3>
+
+<p>In <code>YourAppDelegate.m</code> file, override the method <code>-(BOOL)application:didFinishLaunchingWithOptions:</code></p>
+
+<pre><code>- (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions{
+    // create window object to contain viewController
+    if([SLResponsiveView OSMainVersionNumber]&gt;=7){
+        self.window = [[UIWindow alloc] initWithFrame:[[UIScreen mainScreen] bounds]];
+    }else{
+        CGRect appFrame = [[UIScreen mainScreen] applicationFrame];
+        self.window = [[UIWindow alloc] initWithFrame:CGRectMake(0, 0, appFrame.size.width, appFrame.size.height)];
+    }
+    [self.window makeKeyAndVisible];
+    // create the root viewController
+    YourCustomViewController *vc = [[YourCustomViewController alloc] initWithFrame: 
+                                    [SLResponsiveView applicationFrameWithStatusBarShowing:YES]];
+    // If need navigation support, create a SLResponsiveNavigationController object 
+    SLResponsiveNavigationController *nc = [[SLResponsiveNavigationController alloc] initWithRootViewController: vc];
+    self.window.rootViewController = nc;
+    // If do not need navigation support, use the viewController object directly and comment above two lines
+    // self.window.rootViewController = vc; 
+}
+</code></pre>
+
+<hr>
+
+<h2>
+<a id="step-2-define-responsive-constraints-for-components" class="anchor" href="#step-2-define-responsive-constraints-for-components" aria-hidden="true"><span class="octicon octicon-link"></span></a>Step 2: Define responsive constraints for components</h2>
+
+<p>Taking the process of creating a bottom stick components in <code>YourCustomView</code> as example, follow the 3 basic steps:</p>
+
+<h3>
+<a id="create-the-component-object" class="anchor" href="#create-the-component-object" aria-hidden="true"><span class="octicon octicon-link"></span></a>Create the component object:</h3>
+
+<pre><code>YourComponentView *yourCompView = [[YourComponentView alloc] initWithFrame: CGRectZero];
+</code></pre>
+
+<h3>
+<a id="add-to-the-view-hierarchy" class="anchor" href="#add-to-the-view-hierarchy" aria-hidden="true"><span class="octicon octicon-link"></span></a>Add to the view hierarchy</h3>
+
+<pre><code>[self addSubView: yourCompView];
+</code></pre>
+
+<h3>
+<a id="set-the-responsive-constraints" class="anchor" href="#set-the-responsive-constraints" aria-hidden="true"><span class="octicon octicon-link"></span></a>Set the responsive constraints</h3>
+
+<p>Set the responsive constraints using method <code>-(SLResponsiveViewConstraint *) addSLConstraint:andValue: ...</code>. You can define all kinds of constraints as many as you want.</p>
+
+<pre><code>[self addSLConstraint:kSLRVConstraintMarginBottom // set the constraint type, 
+                                                  //   comparing corresponding value between yourCompView with the referencing object
+                                                  //     kSLRVConstraintMarginLeft,  
+                                                  //     kSLRVConstraintMarginTop,
+                                                  //     kSLRVConstraintMarginRight,
+                                                  //     kSLRVConstraintMarginBottom,
+                                                  //     kSLRVConstraintCenterY,
+                                                  //     kSLRVConstraintCenterX,
+                                                  //     kSLRVConstraintWidth,
+                                                  //     kSLRVConstraintHeight
+             andValue: 0.0f                       // set the constraint value
+            forObject: yourCompView               // set yourCompView object created above
+          isContained: NO                         // set the relationship between yourCompView with 
+                                                  //     the referencing object.
+                                                  //     if is referencing the container view (self)
+                                                  //     the value should be "YES"
+  byReferencingObject: anOtherComponent           // set the object to be referenced when positioning
+                                                  //     if is referencing the container view (self)
+                                                  //     the value should be "self"
+       forOrientation: kSLRVOrientationAll        // set enabled according to the device orientation with values kSLRVOrientationAll, 
+                                                  //     kSLRVOrientationPortraitUp, 
+                                                  //     kSLRVOrientationPortraitDown, 
+                                                  //     kSLRVOrientationLandscapeLeft, 
+                                                  //     kSLRVOrientationLandscapeRight, 
+                                                  //     kSLRVOrientationPortrait, 
+                                                  //     kSLRVOrientationLandscape, 
+                                                  //     kSLRVOrientationUnknown. 
+    forKeyboardStatus:kSLRVKeyboardStatusUnused   // set enabled according to the keyboard status with values kSLRVKeyboardShowing, 
+                                                  //     kSLRVKeyboardHidden, 
+                                                  //     kSLRVKeyboardStatusAll, 
+                                                  //     kSLRVKeyboardStatusUnused. the 
+                                                  //     'Unused' set the constraint ignoring keyboard status
+        forDeviceType:kSLRVDeviceTypeiPad         // set enabled on iPad or iPhone/iPod according to the value
+                                                  //     kSLRVDeviceTypeiPad (iPad) or kSLRVDeviceTypeiPhone (iPhone/iPod)
+];
+</code></pre>
+
+<hr>
+
+<h1>
+<a id="improve" class="anchor" href="#improve" aria-hidden="true"><span class="octicon octicon-link"></span></a>Improve</h1>
+
+<h2>
+<a id="global-instance" class="anchor" href="#global-instance" aria-hidden="true"><span class="octicon octicon-link"></span></a>Global instance</h2>
+
+<p>In some case you may need global instances to improve overall performance, for example, the Ad banner should only be instanced once and used globally across entire view hierarchy. There are many methods to create global instances, for example, setting as the appDelegate's member. But the global instance is hard to manage in the view hierarchy lifecycle. </p>
+
+<p>With the help of SLResponsiveView framework, it becomes very easy. </p>
+
+<p>In <code>YourCustomView</code>'s initializing code, after getting the global instance <code>yourGlobalComp</code>, use <code>[self addGlobalInstance: yourGlobalComp];</code> to inform the framework to handle it's lifecycle in the view hierarchy. And it's safe to define constraints for the global instance whenever using it. Here is a sample code for this:</p>
+
+<pre><code>adBanner=[SLAdvertiseBanner getInstance];
+adBanner.frame=CGRectMake(0, self.frame.size.height-adBannerHeight, self.frame.size.width, adBannerHeight);
+[self addGlobalInstance:adBanner];
+// it's safe to define constraints for the adBanner instance whenever using it
+</code></pre>
+
+<h2>
+<a id="un-rotatable-subview" class="anchor" href="#un-rotatable-subview" aria-hidden="true"><span class="octicon octicon-link"></span></a>Un-rotatable subview</h2>
+
+<p>If you want some components (<code>yourComp</code>) to be fixed in the screen, such as fixing near the home button or the handset no matter what the orientation is, use the method <code>-(void)addUnRotatableSubview:alignTop:staticContent:overrideStatusBar:</code></p>
+
+<pre><code>yourComp.frame = aCustomRect;      // set the object frame in portrait state.
+[self addUnRotatableSubview: yourComp
+                   alignTop: YES   // whether stick with the status bar
+              staticContent: NO    // whether rotate its content when device orientation changed
+          overrideStatusBar: NO    // whether override the status bar if they overlap
+];
+</code></pre>
+
+<h2>
+<a id="conditional-constraint" class="anchor" href="#conditional-constraint" aria-hidden="true"><span class="octicon octicon-link"></span></a>Conditional constraint</h2>
+
+<p>In some case the constraints need to be more programmed, you can use the <code>SLResponsiveViewConstraintConditionDelegate</code> with two steps:</p>
+
+<h3>
+<a id="define-the-constraints-name--delegate" class="anchor" href="#define-the-constraints-name--delegate" aria-hidden="true"><span class="octicon octicon-link"></span></a>Define the constraint's name &amp; delegate</h3>
+
+<p>When defining the constraint, set a name for it and set it's delegate:</p>
+
+<pre><code>SLResponsiveViewConstraint * cst =[self addConstraint: ...... ].name = "yourConditionConstraint";
+cst.delegate = self;
+</code></pre>
+
+<h3>
+<a id="implement-the-delegate" class="anchor" href="#implement-the-delegate" aria-hidden="true"><span class="octicon octicon-link"></span></a>Implement the delegate</h3>
+
+<p>Implement the delegate <code>-(BOOL)shouldApplyConditionalConstraint:</code></p>
+
+<pre><code>-(BOOL)shouldApplyConditionalConstraint:(id)constraint{
+    if(constraint.name == @"yourConditionConstraint"){
+        if( satisfy some condition ){
+            return YES;
+        }
+    }
+    return NO;
+}
+</code></pre>
+
+<hr>
+
+<h1>
+<a id="interfaces" class="anchor" href="#interfaces" aria-hidden="true"><span class="octicon octicon-link"></span></a>Interfaces</h1>
+
+<h2>
+<a id="view-hierarchy--lifecycle-control" class="anchor" href="#view-hierarchy--lifecycle-control" aria-hidden="true"><span class="octicon octicon-link"></span></a>View hierarchy &amp; lifecycle control</h2>
+
+<h3>
+<a id="slresponsiveviewcontroller" class="anchor" href="#slresponsiveviewcontroller" aria-hidden="true"><span class="octicon octicon-link"></span></a><code>SLResponsiveViewController</code>
+</h3>
+
+<pre><code>-(UIViewController *)rootViewController;   // return the root view controller object
+-(UIViewController *)popToRootViewControllerAnimated:(BOOL)animated;
+-(void)dismissOthersAndPresentNewController:(UIViewController *)vc animated:(BOOL)animated;
+-(void)dismissOthersAndPushNewController:(UIViewController *)vc animated:(BOOL)animated;
+-(void)destroyPresentingViewControllersUntil:(UIViewController *) aViewController;
+-(void)destroyPresentedViewControllers;
+-(void)popToPreviousViewControllerAnimated:(BOOL)animated;
+</code></pre>
+
+<h2>
+<a id="overridable-events" class="anchor" href="#overridable-events" aria-hidden="true"><span class="octicon octicon-link"></span></a>Overridable events</h2>
+
+<h3>
+<a id="slresponsiveviewcontroller-1" class="anchor" href="#slresponsiveviewcontroller-1" aria-hidden="true"><span class="octicon octicon-link"></span></a><code>SLResponsiveViewController</code>
+</h3>
+
+<pre><code>-(void)viewControllerWillBeDestroied;
+</code></pre>
+
+<h3>
+<a id="slresponsiveview" class="anchor" href="#slresponsiveview" aria-hidden="true"><span class="octicon octicon-link"></span></a><code>SLResponsiveView</code>
+</h3>
+
+<pre><code>-(void)viewWillBeDestroyed;
+-(void)keyboardHeightChangedTo:(CGFloat)height widthChangedTo:(CGFloat)width;
+-(void)deviceShaked;
+-(void)deviceRotated:(double)angle;
+-(void)deviceRotatedToPortrait;
+-(void)deviceRotatedToLandscapeLeft;
+-(void)deviceRotatedToLandscapeRight;
+-(void)deviceRotatedToPortraitUpsideDown;
+-(void)deviceRotatedToFaceUp;
+-(void)deviceRotatedToFaceDown;
+</code></pre>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">Responsiveview maintained by <a href="https://github.com/mrsunlin">mrsunlin</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+    
+
+  </body>
+</html>
