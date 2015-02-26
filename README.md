@@ -17,6 +17,21 @@ Support from iOS4 to iOS8
 
 `author`    https://www.facebook.com/mrsunlin
 
+# Update for iOS8
+
+## 1. Required addtional step for compitable with iOS8
+
+In `YourAppDelege.m` file, `-(BOOL)application:didFinishLaunchingWithOptions:` method, add the following line:
+
+    [SLResponsiveView storeScreenBounds];
+
+## 2. When presenting in-line custom view, the method `-(void)viewWillAppear` of that view instance should be invoked at the end of the construction procedure.
+
+    ResponsiveView *view = ... ; // Your custom view constructor code here
+    [self addSubview: view];
+    [self addSLConstraint: ... ]; // Set constraints for the custom view
+    [view viewWillAppear];       // This line is required in iOS8
+
 # How to use
 
 ## Step 1: Define classes and initialize root viewController
