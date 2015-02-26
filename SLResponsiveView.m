@@ -8,6 +8,7 @@
 
 #import "SLResponsiveView.h"
 #import "SLGeneralDiagnose.h"
+#import "SLResponsiveViewController.h"
 #pragma mark - Class SLGemeralViewConstraint
 @implementation SLResponsiveViewConstraint
 @synthesize name, category, tag;
@@ -102,6 +103,10 @@
     NSMutableArray *fullScreenSubviews;
     double rotatedAngle;
     UIToolbar *toolbar;
+	BOOL isRotationBegan;
+	BOOL isRotationDone;
+	int countOfSizeChangesWhenRotating;
+	BOOL isGlobalInstanceAddedBack;
 }
 @synthesize orientation, keyboardHeight, keyboardWidth, viewController, originalViewFrame;
 - (id)initWithFrame:(CGRect)frame{
@@ -120,10 +125,13 @@
 }
 -(void)somethingWhenInitWithFrame:(CGRect)frame{
 	// Initialization code
+	isGlobalInstanceAddedBack = NO;
+	isRotationBegan = NO;
+	isRotationDone = YES;
+	countOfSizeChangesWhenRotating=0;
 	// Register StatusBar Change Notification
 	//[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(onStatusBarFrameDidChange) name:UIApplicationDidChangeStatusBarFrameNotification object:nil];
-	// register orientation events
-	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didRotate:) name:UIDeviceOrientationDidChangeNotification object:nil];
+	
 	// initialize local variables
 	rotatedAngle=0;
 	keyboardHeight=0;
@@ -131,41 +139,71 @@
 	originalViewFrame=frame;
 	self.backgroundColor=[UIColor clearColor];
 	isSupportPortraitUpsideDown=NO;
-	switch ([[UIApplication sharedApplication]statusBarOrientation]) {
-		case UIInterfaceOrientationLandscapeLeft:
-			orientation=kSLRVOrientationLandscapeLeft;
-			rotatedAngle=M_PI/2;
-			break;
-		case UIInterfaceOrientationLandscapeRight:
-			orientation=kSLRVOrientationLandscapeRight;
-			rotatedAngle=M_PI*3/2;
-			break;
-		case UIInterfaceOrientationPortrait:
-			orientation=kSLRVOrientationPortraitUp;
-			rotatedAngle=0;
-			break;
-		case UIInterfaceOrientationPortraitUpsideDown:
-			orientation=kSLRVOrientationPortraitDown;
-			rotatedAngle=(isSupportPortraitUpsideDown)?M_PI:0;
-		default:
-			orientation=kSLRVOrientationPortraitUp;
-			break;
-	}
+	
+	orientation = kSLRVOrientationUnknown;
+	
+//	switch ([[UIApplication sharedApplication]statusBarOrientation]) {
+//		case UIInterfaceOrientationLandscapeLeft:
+//			orientation=kSLRVOrientationLandscapeRight;
+//			rotatedAngle=M_PI*3/2;
+//			break;
+//		case UIInterfaceOrientationLandscapeRight:
+//			orientation=kSLRVOrientationLandscapeLeft;
+//			rotatedAngle=M_PI/2;
+//			break;
+//		case UIInterfaceOrientationPortrait:
+//			orientation=kSLRVOrientationPortraitUp;
+//			rotatedAngle=0;
+//			break;
+//		case UIInterfaceOrientationPortraitUpsideDown:
+//			orientation=kSLRVOrientationPortraitDown;
+//			rotatedAngle=(isSupportPortraitUpsideDown)?M_PI:0;
+//		default:
+//			orientation=kSLRVOrientationPortraitUp;
+//			break;
+//	}
 	//
 }
-
 //
 #pragma mark - 初始化/调整外观
+-(void)addObserverForRotationAndKeyboard{
+	// register orientation events
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(didRotate:) name:UIDeviceOrientationDidChangeNotification object:nil];
+	// Register Keyboard Notification
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShow:)
+												 name:UIKeyboardWillShowNotification object:nil];
+	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillHide:)
+												 name:UIKeyboardWillHideNotification object:nil];
+}
+-(void)removeObserverForRotationAndKeyboard{
+	// register orientation events
+	[[NSNotificationCenter defaultCenter] removeObserver:self name:UIDeviceOrientationDidChangeNotification object:nil];
+	// Register Keyboard Notification
+	[[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillShowNotification object:nil];
+	[[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillHideNotification object:nil];
+}
+-(void)setViewController:(UIViewController *)aViewController{
+	viewController = aViewController;
+	if(viewController){
+		[self addObserverForRotationAndKeyboard];
+	}else{
+		[self removeObserverForRotationAndKeyboard];
+	}
+}
 -(void)viewWillBeDestroyed{
+	[self removeObserverForRotationAndKeyboard];
+	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	for(id o in self.subviews){
 		if([o isKindOfClass:SLResponsiveView.class]){
 			SLResponsiveView *gv=o;
 			[gv viewWillBeDestroyed];
 		}
+		if([o respondsToSelector:@selector(setDelegate:)]){
+			[o setDelegate:nil];
+		}
 	}
 	[self viewWillDisappear];
 	[self viewDidDisappear];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIDeviceOrientationDidChangeNotification object:nil];
 	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	// Release all subviews
 	if(arrayOfUnRotatableSubviewsDontAlignToTop){
@@ -223,11 +261,16 @@
 	toolbar=nil;
 }
 -(void)viewWillAppear{
-	// Register Keyboard Notification
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillShow:)
-                                                 name:UIKeyboardWillShowNotification object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(keyboardWillHide:)
-                                                 name:UIKeyboardWillHideNotification object:nil];
+	// Add back the global instance
+	if(arrayOfGlobalInstances && arrayOfGlobalInstances.count>0){
+		for(id instance in arrayOfGlobalInstances){
+			if([instance isKindOfClass:[UIView class]] && ![self.subviews containsObject:instance]){
+				[self addGlobalInstance:instance];
+				isGlobalInstanceAddedBack = YES;
+			}
+		}
+	}
+	
     //在iOS7之前，必须变成firstResponder才能响应shakeMotion
     [self becomeFirstResponder];
     // Set inner variable
@@ -241,6 +284,7 @@
 			[self superViewRotatedToAngle:M_PI/2];
 			break;
 		case UIInterfaceOrientationPortrait:
+			[self superViewRotatedToAngle:0];
 			break;
 		case UIInterfaceOrientationPortraitUpsideDown:
 			if(isSupportPortraitUpsideDown)
@@ -253,6 +297,12 @@
 	// 在引入navigationController之后，如果在显示pop回来之前界面变动过，则无法调整
 	[self performSelectorOnMainThread:@selector(layoutSubviews) withObject:nil waitUntilDone:YES];
     isViewDidAppear=YES;
+	
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[SLResponsiveView class]]){
+			[((SLResponsiveView *)v) viewWillAppear];
+		}
+	}
 }
 -(void)viewWillDisappear{
 	/*
@@ -262,18 +312,42 @@
 		
 	}];
 	 */
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[SLResponsiveView class]]){
+			[((SLResponsiveView *)v) viewWillDisappear];
+		}
+	}
 }
 -(void)viewDidAppear{
+	if(isGlobalInstanceAddedBack){
+		//[self rotateUnRotatableSubviewsBack];
+		[self layoutSubviews];
+		isGlobalInstanceAddedBack=NO;
+	}
     // 为了消除当view被压在view stack底部又重新恢复显示的时候可能有的adjustY方面的错误，牺牲一部分计算性能
 	// 虽然其作用，但是很难看，当着用户的面调整界面；可能还是和[self adjustY]有关，但是尝试之后还是没有关系
 	// 引入了viewController变量，解决了如何判断一个view是mainView的问题
+	
+	isViewDidAppear = YES;
+	
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[SLResponsiveView class]]){
+			[((SLResponsiveView *)v) viewDidAppear];
+		}
+	}
 }
 -(void)viewDidDisappear{
     // Un-Register keyboard Notification
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillShowNotification object:nil];
-    [[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillHideNotification object:nil];
+    //[[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillShowNotification object:nil];
+    //[[NSNotificationCenter defaultCenter] removeObserver:self name:UIKeyboardWillHideNotification object:nil];
     // Set Inner variable
     isViewDidAppear=NO;
+	
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[SLResponsiveView class]]){
+			[((SLResponsiveView *)v) viewDidDisappear];
+		}
+	}
 }
 -(BOOL)isViewAppearing{
     return isViewDidAppear;
@@ -346,6 +420,12 @@
     return YES;
 }
 #pragma mark - Handle Orientation Changed
+-(SLResponsiveViewOrientation)orientation{
+	return orientation;
+}
+-(CGFloat)rotatedAngle{
+	return rotatedAngle;
+}
 -(void)superViewRotatedToAngle:(double)angle{
 	rotatedAngle=angle;
 	if(angle==0){
@@ -361,27 +441,37 @@
 		[self deviceRotatedToOrientation:kSLRVOrientationLandscapeRight];
 		[self deviceRotatedToLandscapeRight];
 	}
-	//[self rotateStaticContentBack:angle];
+	
+	// 2014-9-6
+	// 在有些情况下，layout会在rotation message到达之前执行，导致rotation message到达之后不能调整页面排版
+	// 比如 PlantID 项目中，第一页的rotation message在layout之前到达，当第一页被压入下层，第二页的rotation message就在layout之后才到达
+	// 因此
+	[self layoutSubviews];
+	
+	[self deviceIsRotating:angle];
 	[self deviceRotated:angle];
+	//
 	for(UIView *v in self.subviews){
-		if(arrayOfStaticContentSubviews && [arrayOfStaticContentSubviews containsObject:v]){
-			continue;
-		}else{
+		// 2014-9-7 这个消息必须传递给 staticContentSubview ，否则比如UniversalBar被固定的时候，它的buttons将无法被rotate回来
+		//if(arrayOfStaticContentSubviews && [arrayOfStaticContentSubviews containsObject:v]){
+		//	continue;
+		//}else{
 			if([v isKindOfClass:[SLResponsiveView class]] && [v respondsToSelector:@selector(superViewRotatedToAngle:)]){
 				SLResponsiveView *gv  = (SLResponsiveView *)v;
 				[gv superViewRotatedToAngle:angle];
 			}
-		}
+		//}
 	}
+	
 }
 -(UIInterfaceOrientation)interfaceOrientationForAngle:(double)angle{
 	if(angle==0){
 		return UIInterfaceOrientationPortrait;
 	}else if(angle-M_PI==0){
 		return UIInterfaceOrientationPortraitUpsideDown;
-	}else if(angle - M_PI/2 == 0){
-		return UIInterfaceOrientationLandscapeLeft;
 	}else if(angle - M_PI*3/2 == 0){
+		return UIInterfaceOrientationLandscapeLeft;
+	}else if(angle - M_PI/2 == 0){
 		return UIInterfaceOrientationLandscapeRight;
 	}
 	return UIInterfaceOrientationPortrait;
@@ -391,6 +481,9 @@
     // 在ios7之前，self.frame 也会随着屏幕的变化而变化，所以还得不断的重新还原到最开始的大小
     // 把不需要旋转的部分旋转回去
     // Something need to be re-arranged when rotated
+	isRotationBegan = YES;
+	isRotationDone = NO;
+	countOfSizeChangesWhenRotating = 0;
     UIDeviceOrientation currentOrientation=[[UIDevice currentDevice]orientation];
 	//
     double angle=0;
@@ -418,24 +511,29 @@
             [self superViewRotatedToAngle:angle];
         }
     }else if(currentOrientation ==UIDeviceOrientationFaceDown){
-		[self superViewRotatedToAngle:rotatedAngle];
+		//[self superViewRotatedToAngle:rotatedAngle];
         // 正面朝下
-        //[self deviceRotatedToFaceDown];
+        [self deviceRotatedToFaceDown];
     }else if(currentOrientation == UIDeviceOrientationFaceUp){
         // 正面朝上
-		[self superViewRotatedToAngle:rotatedAngle];
-        //[self deviceRotatedToFaceUp];
+		//[self superViewRotatedToAngle:rotatedAngle];
+        [self deviceRotatedToFaceUp];
     }
 }
 -(void)deviceRotatedToOrientation:(SLResponsiveViewOrientation)orien{
     if(orien != orientation){
 		
         //if([self isMainView]) {
-            //self.frame=originalViewFrame;
+        //    self.frame=originalViewFrame;
         //}
 		
         orientation=orien;
         [self rotateUnRotatableSubviewsBack];
+		
+		if(self.viewController && [self.viewController isKindOfClass:[SLResponsiveViewController class]]){
+			((SLResponsiveViewController *)self.viewController).orientation = orien;
+			[((SLResponsiveViewController *)self.viewController) deviceRotatedToOrientation:orien];
+		}
 		/*
         // 必须传递给子视图，否则子视图接受不到rotation notification
         for(id v in self.subviews){
@@ -447,6 +545,8 @@
         }
 		 */
     }
+}
+-(void)deviceIsRotating:(double)angle{
 }
 -(void)deviceRotated:(double)angle{
 }
@@ -489,20 +589,18 @@
 	}
     for(NSArray *tmpArray in theArray){
         BOOL alignedTop=(tmpArray==arrayOfUnRotatableSubviewsAlignToTop)?YES:NO;
-        for(id Subview in tmpArray){
-            if([Subview isKindOfClass:[UIView class]]){
-                UIView *rotatedView=[[self class] rotateShapeBack:Subview
-                                   originalFrame:[self getOriginalFrameForSubview:Subview]
-                             includingUpsideDown:isSupportPortraitUpsideDown
-								includingContent:(arrayOfStaticContentSubviews && [arrayOfStaticContentSubviews containsObject:Subview])?YES:NO
-								showingStatusBar:(arrayOfOverrideStatusBarSubviews && [arrayOfOverrideStatusBarSubviews containsObject:Subview])?NO:YES
-                                    isAlignedTop:alignedTop
-                                 verticalReverse:YES
-						currentDeviceOrientation:currentOrientation];
-                if(rotatedView){
-                    [rotatedSubviews addObject:rotatedView];
-                }
-            }
+        for(UIView *view in tmpArray){
+			UIView *rotatedView=[[self class] rotateShapeBack:view
+												originalFrame:[self getOriginalFrameForSubview:view]
+										  includingUpsideDown:isSupportPortraitUpsideDown
+											 includingContent:(arrayOfStaticContentSubviews && [arrayOfStaticContentSubviews containsObject:view])?YES:NO
+											 showingStatusBar:(arrayOfOverrideStatusBarSubviews && [arrayOfOverrideStatusBarSubviews containsObject:view])?NO:YES
+												 isAlignedTop:alignedTop
+											  verticalReverse:YES
+									 currentDeviceOrientation:currentOrientation];
+			if(rotatedView){
+				[rotatedSubviews addObject:rotatedView];
+			}
         }
     }
     // Apply constraints for the rotated subviews
@@ -511,15 +609,6 @@
             [self applyConstraintsForSubview:v];
         }
     }
-}
--(void)rotateStaticContentBack:(double)angle{
-	/*
-    for(UIView *v in arrayOfStaticContentSubviews){
-        if(v.superview==self){
-            v.transform=CGAffineTransformMakeRotation(2*M_PI-angle);
-        }
-    }
-	 */
 }
 -(void)addUnRotatableSubview:(id)unRotatableView alignTop:(BOOL)alignTop staticContent:(BOOL)staticContent overrideStatusBar:(BOOL)overrideStatusBar{
     if(unRotatableView == nil || ![unRotatableView isKindOfClass:[UIView class]])return;
@@ -614,6 +703,27 @@
     CGRect rect=CGRectMake(x, y, width, height);
     return [self convertDesignedFrame:rect];
 }
+-(void)viewControllerDidRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation{
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[self class]]){
+			[(SLResponsiveView *)v viewControllerDidRotateFromInterfaceOrientation:fromInterfaceOrientation];
+		}
+	}
+}
+-(void)viewControllerWillRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration{
+	for(UIView *v in self.subviews){
+		if([v isKindOfClass:[self class]]){
+			[(SLResponsiveView *)v viewControllerWillRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
+		}
+	}
+}
+-(void)viewControllerDidLayoutSubviews{
+	for(id v in self.subviews){
+		if([v isKindOfClass:[self class]]){
+			[(SLResponsiveView *)v viewControllerDidLayoutSubviews];
+		}
+	}
+}
 #pragma mark - Class Methods
 +(id)rotateShapeBack:(id)obj originalFrame:(CGRect)originRect includingUpsideDown:(BOOL)includingUpsideDown includingContent:(BOOL)includingContent  showingStatusBar:(BOOL)showingStatusBar isAlignedTop:(BOOL)isAlignedTop verticalReverse:(BOOL)verticalReverse currentDeviceOrientation:(UIDeviceOrientation)currentOrientation{
     if(![obj isKindOfClass:[UIView class]])return nil;
@@ -627,6 +737,9 @@
     CGFloat adjustX=(isAlignedTop && showingStatusBar)?[[self class]adjustY]:0;
     adjustX-=(isAlignedTop && showingStatusBar)?0:[[self class] statusBarHeight]-[[self class]adjustY];
 	CGFloat adjustY=(showingStatusBar)?[[self class]adjustY]:0;
+	if(view.tag == 987654321){
+		NSLog(@"CATCH YOU");
+	}
     switch (currentOrientation) {
         case UIDeviceOrientationLandscapeLeft:
             deviceAngle=M_PI/2;
@@ -672,22 +785,78 @@
 +(NSInteger)OSMainVersionNumber{
 	return [[[[[UIDevice currentDevice]systemVersion] componentsSeparatedByString:@"."]objectAtIndex:0] integerValue];
 }
++(void)storeScreenBounds{
+	CGRect bounds = [[UIScreen mainScreen]bounds];
+	[SLGeneralDiagnose printRect:bounds comment:@"Screen Bounds"];
+	UIInterfaceOrientation orientation = [[UIApplication sharedApplication]statusBarOrientation];
+	NSString *value = [NSString stringWithFormat:@"%f,%f,%f,%f,%ld", bounds.origin.x, bounds.origin.y, bounds.size.width, bounds.size.height, orientation];
+	[[NSUserDefaults standardUserDefaults]setObject:value forKey:@"SLResponsiveView_InitialScreenBoundsAndOrientation"];
+	[[NSUserDefaults standardUserDefaults]synchronize];
+}
++(UIDeviceOrientation)deviceOrientationForSLResponsiveViewOrientation:(SLResponsiveViewOrientation)orientation{
+	switch (orientation) {
+		case kSLRVOrientationPortrait:
+			return UIDeviceOrientationPortrait;
+			break;
+		case kSLRVOrientationPortraitDown:
+			return UIDeviceOrientationPortraitUpsideDown;
+			break;
+		case kSLRVOrientationLandscapeLeft:
+			return UIDeviceOrientationLandscapeLeft;
+			break;
+		case kSLRVOrientationLandscapeRight:
+			return UIDeviceOrientationLandscapeRight;
+		default:
+			return UIDeviceOrientationPortrait;
+			break;
+	}
+}
 +(CGRect)currentApplicationBoundsWithStatusBarShowing:(BOOL)showingStatusBar currentDeviceOrientation:(UIDeviceOrientation)currentOrientation{
-    CGRect screenBounds=[[UIScreen mainScreen]bounds];
-    CGFloat adjustStatusBarHeight=[[self class]statusBarHeight]-[[self class]adjustY];
-    CGRect currentAppFrame=screenBounds;
-    switch (currentOrientation) {
-        case UIDeviceOrientationLandscapeLeft:
-        case UIDeviceOrientationLandscapeRight:
-            currentAppFrame.size.height=(showingStatusBar)?screenBounds.size.width-adjustStatusBarHeight:screenBounds.size.width;
-            currentAppFrame.size.width=screenBounds.size.height;
-            break;
-        default:
-            currentAppFrame.size.height=(showingStatusBar)?screenBounds.size.height-adjustStatusBarHeight:screenBounds.size.height;
-            currentAppFrame.size.width=screenBounds.size.width;
-            break;
-    }
-    return currentAppFrame;
+	BOOL useStoredValue = NO;
+	if([[self class]OSMainVersionNumber]>=8){
+		NSString *value = [[NSUserDefaults standardUserDefaults]stringForKey:@"SLResponsiveView_InitialScreenBoundsAndOrientation"];
+		if(value){
+			NSArray *components = [value componentsSeparatedByString:@","];
+			if(components.count==5){
+				useStoredValue = YES;
+				CGRect screenBounds = CGRectMake(((NSString *)components[0]).floatValue,
+												 ((NSString *)components[1]).floatValue,
+												 ((NSString *)components[2]).floatValue,
+												 ((NSString *)components[3]).floatValue);
+				UIInterfaceOrientation orientation = ((NSString *)components[4]).intValue;
+				
+				if(currentOrientation == UIDeviceOrientationFaceUp || currentOrientation == UIDeviceOrientationFaceDown ||
+				   ((orientation == UIInterfaceOrientationLandscapeLeft || orientation == UIInterfaceOrientationLandscapeRight)
+				   &&(currentOrientation == UIDeviceOrientationLandscapeLeft || currentOrientation == UIDeviceOrientationLandscapeRight))
+				||((orientation == UIInterfaceOrientationPortrait || orientation == UIInterfaceOrientationPortraitUpsideDown)
+				   &&(currentOrientation == UIDeviceOrientationPortrait || currentOrientation == UIDeviceOrientationPortraitUpsideDown))
+				   ){
+					return screenBounds;
+				}else{
+					CGFloat v = screenBounds.size.height;
+					screenBounds.size.height = screenBounds.size.width;
+					screenBounds.size.width = v;
+					return screenBounds;
+				}
+			}
+		}
+	}
+	
+	CGRect screenBounds=[[UIScreen mainScreen]bounds];
+	CGFloat adjustStatusBarHeight=[[self class]statusBarHeight]-[[self class]adjustY];
+	CGRect currentAppFrame=screenBounds;
+	switch (currentOrientation) {
+		case UIDeviceOrientationLandscapeLeft:
+		case UIDeviceOrientationLandscapeRight:
+			currentAppFrame.size.height=(showingStatusBar)?screenBounds.size.width-adjustStatusBarHeight:screenBounds.size.width;
+			currentAppFrame.size.width=screenBounds.size.height;
+			break;
+		default:
+			currentAppFrame.size.height=(showingStatusBar)?screenBounds.size.height-adjustStatusBarHeight:screenBounds.size.height;
+			currentAppFrame.size.width=screenBounds.size.width;
+			break;
+	}
+	return currentAppFrame;
 }
 +(CGRect)applicationFrameWithStatusBarShowing:(BOOL)showingStatusBar{
     CGRect viewControllerFrame=[[UIScreen mainScreen]applicationFrame];
@@ -749,8 +918,9 @@
     else return NO;
 }
 +(BOOL)isRunningOnIPhone{
-    if(UI_USER_INTERFACE_IDIOM()==UIUserInterfaceIdiomPhone)return YES;
-    else return NO;
+	return ![[self class]isRunningOniPad];
+    //if(UI_USER_INTERFACE_IDIOM()==UIUserInterfaceIdiomPhone)return YES;
+    //else return NO;
 }
 +(BOOL)isRunningOnIPhone4SOrEarlier{
 	if(UI_USER_INTERFACE_IDIOM()==UIUserInterfaceIdiomPhone){
@@ -865,7 +1035,7 @@
                              if (finished) {
                                  [UIView animateWithDuration:0.05
                                                        delay:0.0
-                                                     options:UIViewAnimationOptionBeginFromCurrentState
+                                                     options:UIViewAnimationOptionCurveEaseInOut
                                                   animations:^{
                                                       v.transform = CGAffineTransformIdentity;
                                                   }
@@ -1111,6 +1281,132 @@
 	}
 	return option;
 }
++(CGRect) imagePositionInImageView:(UIImageView*)anImageView{
+    float x = 0.0f;
+    float y = 0.0f;
+    float w = 0.0f;
+    float h = 0.0f;
+    CGFloat ratio = 0.0f;
+    CGFloat horizontalRatio = anImageView.frame.size.width / anImageView.image.size.width;
+    CGFloat verticalRatio = anImageView.frame.size.height / anImageView.image.size.height;
+
+    switch (anImageView.contentMode) {
+        case UIViewContentModeScaleToFill:
+            w = anImageView.frame.size.width;
+            h = anImageView.frame.size.height;
+            break;
+        case UIViewContentModeScaleAspectFit:
+            // contents scaled to fit with fixed aspect. remainder is transparent
+            ratio = MIN(horizontalRatio, verticalRatio);
+            w = anImageView.image.size.width*ratio;
+            h = anImageView.image.size.height*ratio;
+            x = (horizontalRatio == ratio ? 0 : ((anImageView.frame.size.width - w)/2));
+            y = (verticalRatio == ratio ? 0 : ((anImageView.frame.size.height - h)/2));
+            break;
+        case UIViewContentModeScaleAspectFill:
+            // contents scaled to fill with fixed aspect. some portion of content may be clipped.
+            ratio = MAX(horizontalRatio, verticalRatio);
+            w = anImageView.image.size.width*ratio;
+            h = anImageView.image.size.height*ratio;
+            x = (horizontalRatio == ratio ? 0 : ((anImageView.frame.size.width - w)/2));
+            y = (verticalRatio == ratio ? 0 : ((anImageView.frame.size.height - h)/2));
+            break;
+        case UIViewContentModeCenter:
+            // contents remain same size. positioned adjusted.
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            x = (anImageView.frame.size.width - w)/2;
+            y = (anImageView.frame.size.height - h)/2;
+            break;
+        case UIViewContentModeTop:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            x = (anImageView.frame.size.width - w)/2;
+            break;
+        case UIViewContentModeBottom:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            y = (anImageView.frame.size.height - h);
+            x = (anImageView.frame.size.width - w)/2;
+            break;
+        case UIViewContentModeLeft:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            y = (anImageView.frame.size.height - h)/2;
+            break;
+        case UIViewContentModeRight:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            y = (anImageView.frame.size.height - h)/2;
+            x = (anImageView.frame.size.width - w);
+            break;
+        case UIViewContentModeTopLeft:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            break;
+        case UIViewContentModeTopRight:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            x = (anImageView.frame.size.width - w);
+            break;
+        case UIViewContentModeBottomLeft:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            y = (anImageView.frame.size.height - h);
+            break;
+        case UIViewContentModeBottomRight:
+            w = anImageView.image.size.width;
+            h = anImageView.image.size.height;
+            y = (anImageView.frame.size.height - h);
+            x = (anImageView.frame.size.width - w);
+        default:
+            break;
+    }
+    return CGRectMake(x, y, w, h);
+}
++(UIImage*)captureView:(UIView *)view rectOnScreen:(CGRect)rect {
+    UIGraphicsBeginImageContext(rect.size);
+    CGContextRef context = UIGraphicsGetCurrentContext();
+    [view.layer renderInContext:context];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return image;
+}
++(UIImage *)image:(UIImage *)image subRegion:(CGRect)rect{
+	if(!image)return nil;
+	CGRect fromRect = rect; // or whatever rectangle
+	CGImageRef drawImage = CGImageCreateWithImageInRect(image.CGImage, fromRect);
+	UIImage *newImage = [UIImage imageWithCGImage:drawImage];
+	CGImageRelease(drawImage);
+	return newImage;
+}
++(UIImage *)image:(UIImage *)image rotateAngle:(CGFloat)angle{
+	if(!image) return nil;
+	CGSize imgSize = image.size;
+	// calculate the size of the rotated view's containing box for our drawing space
+    UIView *rotatedViewBox = [[UIView alloc] initWithFrame:CGRectMake(0,0,imgSize.width, imgSize.height)];
+    CGAffineTransform t = CGAffineTransformMakeRotation(angle);
+    rotatedViewBox.transform = t;
+    CGSize rotatedSize = rotatedViewBox.frame.size;
+
+    // Create the bitmap context
+    UIGraphicsBeginImageContext(rotatedSize);
+    CGContextRef bitmap = UIGraphicsGetCurrentContext();
+
+    // Move the origin to the middle of the image so we will rotate and scale around the center.
+    CGContextTranslateCTM(bitmap, rotatedSize.width/2, rotatedSize.height/2);
+
+    //   // Rotate the image context
+    CGContextRotateCTM(bitmap, angle);
+
+    // Now, draw the rotated/scaled image into the context
+    CGContextScaleCTM(bitmap, 1.0, -1.0);
+    CGContextDrawImage(bitmap, CGRectMake(-imgSize.width / 2, -imgSize.height / 2, imgSize.width, imgSize.height), [image CGImage]);
+
+    UIImage *newImage = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    return newImage;
+}
 #pragma mark - Constraint
 -(SLResponsiveViewConstraint *)addSLConstraint:(SLResponsiveViewConstraintType)type andValue:(CGFloat)value forObject:(UIView *)Subview isContained:(BOOL)isContained byReferencingObject:(UIView *)refView forOrientation:(SLResponsiveViewOrientation)orien forKeyboardStatus:(SLResponsiveViewKeyboardStatus)ks forDeviceType:(SLResponsiveViewDeviceType)dt{
     if(!Subview)return nil;
@@ -1120,8 +1416,39 @@
     return constraint;
 }
 -(NSArray *)addInnerMarginSLConstraintForSubview:(UIView *)subview margin:(UIEdgeInsets)margin inFullScreenMode:(BOOL)fullScreenMode forOrientation:(SLResponsiveViewOrientation)orien forKeyboardStatus:(SLResponsiveViewKeyboardStatus)ks forDeviceType:(SLResponsiveViewDeviceType)dt{
-    SLResponsiveViewConstraint *constraintBottom=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginBottom andValue:(fullScreenMode)?margin.bottom:margin.bottom+[self.class adjustY] forObject:subview isContained:YES byReferencingObject:self forOrientation:orien forKeyboardStatus:ks forDeviceType:dt];
-    [self addSLConstraint:constraintBottom];
+	SLResponsiveViewConstraint *constraintBottom=nil;
+	if([[self class]OSMainVersionNumber] < 8){
+		constraintBottom=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginBottom andValue:(fullScreenMode)?margin.bottom:margin.bottom+[self.class adjustY] forObject:subview isContained:YES byReferencingObject:self forOrientation:orien forKeyboardStatus:ks forDeviceType:dt];
+		[self addSLConstraint:constraintBottom];
+	}else{
+		NSArray *orienLandscape = @[[NSNumber numberWithInt: kSLRVOrientationLandscapeLeft]
+									,[NSNumber numberWithInt: kSLRVOrientationLandscapeRight]
+									,[NSNumber numberWithInt: kSLRVOrientationLandscape]];
+		NSArray *orienPorait = @[[NSNumber numberWithInt: kSLRVOrientationPortraitUp]
+								 ,[NSNumber numberWithInt: kSLRVOrientationPortraitDown]
+								 ,[NSNumber numberWithInt: kSLRVOrientationPortrait]];
+		
+		NSMutableArray *orienSet = [NSMutableArray new];
+		if(orien == kSLRVOrientationAll){
+			[orienSet addObjectsFromArray:orienLandscape];
+			[orienSet addObjectsFromArray:orienPorait];
+		}else if(orien==kSLRVOrientationPortrait){
+			[orienSet addObjectsFromArray:orienPorait];
+		}else if(orien==kSLRVOrientationLandscape){
+			[orienSet addObjectsFromArray:orienLandscape];
+		}else{
+			[orienSet addObject:[NSNumber numberWithInt:orien]];
+		}
+		for(NSNumber *obj in orienSet){
+			SLResponsiveViewOrientation o = obj.intValue;
+			if(o == kSLRVOrientationLandscape || o == kSLRVOrientationLandscapeLeft || o == kSLRVOrientationLandscapeRight){
+				constraintBottom=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginBottom andValue:margin.bottom forObject:subview isContained:YES byReferencingObject:self forOrientation:o forKeyboardStatus:ks forDeviceType:dt];
+			}else if(o == kSLRVOrientationPortrait || o == kSLRVOrientationPortraitUp || o == kSLRVOrientationUnknown){
+				constraintBottom=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginBottom andValue:(fullScreenMode)?margin.bottom:margin.bottom+[self.class adjustY] forObject:subview isContained:YES byReferencingObject:self forOrientation:o forKeyboardStatus:ks forDeviceType:dt];
+			}
+			[self addSLConstraint:constraintBottom];
+		}
+	}
     SLResponsiveViewConstraint *constraintTop=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginTop andValue:margin.top forObject:subview isContained:YES byReferencingObject:self forOrientation:orien forKeyboardStatus:ks forDeviceType:dt];
     [self addSLConstraint:constraintTop];
     SLResponsiveViewConstraint *constraintLeft=[SLResponsiveViewConstraint constraintWithType:kSLRVConstraintMarginLeft andValue:margin.left forObject:subview isContained:YES byReferencingObject:self forOrientation:orien forKeyboardStatus:ks forDeviceType:dt];
@@ -1132,11 +1459,11 @@
         if(fullScreenSubviews==nil)fullScreenSubviews=[[NSMutableArray alloc]init];
         [fullScreenSubviews addObject:subview];
     }
-    return [NSArray arrayWithObjects:constraintTop, constraintBottom, constraintLeft, constraintRight, nil];
+    return @[constraintTop, constraintBottom, constraintLeft, constraintRight];
 }
 -(void)addSLConstraint:(SLResponsiveViewConstraint *)constraint{
     if(constraint && constraint.object
-       &&(constraint.deviceType==kSLRVDeviceTypeAll||(constraint.deviceType==kSLRVDeviceTypeIPhone && [[self class]isRunningOnIPhone])
+       &&(constraint.deviceType==kSLRVDeviceTypeAll||(constraint.deviceType==kSLRVDeviceTypeiPhone && [[self class]isRunningOnIPhone])
           ||(constraint.deviceType==kSLRVDeviceTypeiPad && [[self class]isRunningOniPad]))){
            if(constraintsOfSubviews==nil)constraintsOfSubviews=[[NSMutableDictionary alloc]init];
            NSValue *SubviewValue=[NSValue valueWithNonretainedObject:constraint.object];
@@ -1285,19 +1612,23 @@
     [sortedSubviewsWithConstraints addObjectsFromArray:onlyReferencingOrSoloSubviewsWithChonstraints];
     subviewsWithConstraints=sortedSubviewsWithConstraints;
 }
+-(BOOL)shouldAnimateConstraints{
+	return NO;
+}
 -(void)applyConstraints{
-    for(UIView *subview in subviewsWithConstraints){
-        [self applyConstraintsForSubview:subview];
-    }
+	for(UIView *subview in subviewsWithConstraints){
+		[self applyConstraintsForSubview:subview];
+	}
 }
 -(BOOL)shouldApplyConstraint:(SLResponsiveViewConstraint *)cst verbose:(BOOL)verbose{
     if(cst.object==nil || ![self.subviews containsObject:cst.object])return NO;
+	if(cst.referencingObject && cst.referencingObject!=self && ![self.subviews containsObject:cst.referencingObject]) return NO;
     BOOL deviceCompatible=(
                            cst.deviceType==kSLRVDeviceTypeAll
                            || (cst.deviceType==kSLRVDeviceTypeiPad && [[self class]isRunningOniPad])
-                           ||(cst.deviceType==kSLRVDeviceTypeIPhone && [[self class]isRunningOnIPhone])
+                           ||(cst.deviceType==kSLRVDeviceTypeiPhone && [[self class]isRunningOnIPhone])
                            );
-    BOOL orientationCompatible=[cst compatibleWithOrientation:self.orientation];
+    BOOL orientationCompatible=[cst compatibleWithOrientation:orientation];
     BOOL conditionCompatible=(
                               cst.conditionDelegate==nil
                               || (cst.conditionDelegate && [cst.conditionDelegate shouldApplyConditionalConstraint:cst])
@@ -1397,6 +1728,7 @@
 						}
 						rect.size.height-=self.keyboardHeight+adjustY;
 					}
+					if(rect.size.height<0)rect.size.height = 0;
 					cst.object.frame=rect;
 					[processedConstraints addObject:tmpCST];
 				}else if((tmpCST.type==kSLRVConstraintMarginRight&&cst.type==kSLRVConstraintMarginLeft)
@@ -1431,7 +1763,7 @@
 							rect.size.width=cstBorder-tmpCST.value-tmpCstBorder-cst.value;
 						}
 					}
-
+					if(rect.size.width <0)rect.size.width = 0;
 					cst.object.frame=rect;
 					[processedConstraints addObject:tmpCST];
 				}
@@ -1566,7 +1898,13 @@
 	
 }
 -(void)arrangeContent{
-    [self applyConstraints];
+	if(self.shouldAnimateConstraints){
+		[UIView animateWithDuration:0.2 delay:0 options:UIViewAnimationOptionCurveEaseInOut animations:^{
+			[self applyConstraints];
+		} completion:^(BOOL finished) {
+			
+		}];
+	}else [self applyConstraints];
     if(toolbar)[toolbar setFrame:self.bounds];
 	[self constraintsApplied];
 }
@@ -1620,12 +1958,19 @@
 }
 -(void)removeGlobalInstance:(id)instance{
 	if(instance && arrayOfGlobalInstances && [arrayOfGlobalInstances containsObject:instance]){
-		[self removeObject:instance];
+		//[self removeObject:instance];
+		if([instance respondsToSelector:@selector(setDelegate:)]){
+			[instance setDelegate:nil];
+		}
+		if([instance isKindOfClass:UIView.class] && [self.subviews containsObject:instance]){
+			[((UIView *)instance)removeFromSuperview];
+		}
 	}
 }
 -(NSArray *)globalInstances{
 	return arrayOfGlobalInstances;
 }
+#pragma mark - Remove subview
 -(void)removeObject:(id)obj{
 	//	  NSMutableArray *arrayOfGlobalInstances;
 	if(obj && arrayOfGlobalInstances && [arrayOfGlobalInstances containsObject:obj]){
@@ -1664,8 +2009,25 @@
 	//    NSMutableArray *fullScreenSubviews;
 	[self removeSLConstraintForObject:obj];
 	
+	if([obj respondsToSelector:@selector(setDelegate:)]){
+		[obj setDelegate:nil];
+	}
+	
 	if([obj isKindOfClass:UIView.class] && [self.subviews containsObject:obj]){
 		[((UIView *)obj)removeFromSuperview];
 	}
+}
+-(void)removeSubview:(UIView *)subview{
+	if(subview && [self.subviews containsObject:subview]){
+		[self removeObject:subview];
+	}
+}
+#pragma mark - Add subview
+-(void)addSubview:(UIView *)view{
+	[super addSubview:view];
+	// 2014-9-15 为了解决初始orientation的bug而采取的临时办法
+	//if([view isKindOfClass:[SLResponsiveView class]]){
+	//	[((SLResponsiveView *)view)viewWillAppear];
+	//}
 }
 @end

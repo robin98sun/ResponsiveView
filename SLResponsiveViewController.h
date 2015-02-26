@@ -13,6 +13,7 @@
 @interface SLResponsiveViewController : GAITrackedViewController
 
 @property (weak,nonatomic) SLResponsiveView *mainView;
+@property (nonatomic) SLResponsiveViewOrientation orientation;
 -(id)initWithFrame:(CGRect)frame;
 -(UIViewController *)rootViewController;
 -(UIViewController *)popToRootViewControllerAnimated:(BOOL)animated;
@@ -21,7 +22,10 @@
 -(void)destroyPresentingViewControllersUntil:(UIViewController *)rootVC;
 -(void)destroyPresentedViewControllers;
 -(void)popToPreviousViewControllerAnimated:(BOOL)animated;
+-(void)popToPreviousViewControllerAndPushNewController:(UIViewController *)vc animated:(BOOL)animated;
+-(void)popToPreviousViewControllerAndPresentNewController:(UIViewController *)vc animated:(BOOL)animated;
 -(void)viewControllerWillBeDestroied;
+-(void)deviceRotatedToOrientation:(SLResponsiveViewOrientation)orientation;
 @property (nonatomic) CGRect frame;
 @property (nonatomic) BOOL enableDefaultAnimationDuringRotation;
 @end

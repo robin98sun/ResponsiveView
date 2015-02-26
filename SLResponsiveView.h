@@ -27,7 +27,7 @@ typedef enum SLResponsiveViewKeyboardStatus{
 
 typedef enum SLResponsiveViewDeviceType{
     kSLRVDeviceTypeiPad,
-    kSLRVDeviceTypeIPhone,
+    kSLRVDeviceTypeiPhone,
     kSLRVDeviceTypeAll
 }SLResponsiveViewDeviceType;
 
@@ -79,6 +79,7 @@ typedef enum  SLResponsiveViewConstraintType {
 @property (readonly,nonatomic) CGFloat keyboardWidth;
 @property (nonatomic,unsafe_unretained) UIViewController *viewController;
 @property (nonatomic) CGRect originalViewFrame;
+-(CGFloat)rotatedAngle;
 -(void)setSupportPortraitUpsideDown:(BOOL)support;
 -(void)viewWillAppear;
 -(void)viewDidAppear;
@@ -88,6 +89,7 @@ typedef enum  SLResponsiveViewConstraintType {
 -(BOOL)isViewAppearing;
 -(void)keyboardHeightChangedTo:(CGFloat)height widthChangedTo:(CGFloat)width;
 -(void)deviceShaked;
+-(void)deviceIsRotating:(double)angle;
 -(void)deviceRotated:(double)angle;
 -(void)deviceRotatedToPortrait;
 -(void)deviceRotatedToLandscapeLeft;
@@ -102,6 +104,10 @@ typedef enum  SLResponsiveViewConstraintType {
 -(CGRect)convertDesignedFrame:(CGRect)frame;
 -(CGRect)makeCGRectByX:(CGFloat) x y:(CGFloat)y width:(CGFloat)width height:(CGFloat)height;
 -(void)superViewRotatedToAngle:(double)angle;
+-(void)viewControllerWillRotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation duration:(NSTimeInterval)duration;
+-(void)viewControllerDidRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation;
+-(void)viewControllerDidLayoutSubviews;
+
 #pragma mark - Blur
 -(BOOL)canSetBlurTintColor;
 -(void)setBlurTintColor:(UIColor *)color;
@@ -113,8 +119,10 @@ typedef enum  SLResponsiveViewConstraintType {
 #pragma mark - Class Methods
 +(id)rotateShapeBack:(id)obj originalFrame:(CGRect)originRect includingUpsideDown:(BOOL)includingUpsideDown includingContent:(BOOL)includingContent  showingStatusBar:(BOOL)showingStatusBar isAlignedTop:(BOOL)isAlignedTop verticalReverse:(BOOL)verticalReverse currentDeviceOrientation:(UIDeviceOrientation)currentOrientation;
 +(CGFloat)adjustY;
++(void)storeScreenBounds;
 +(CGFloat)statusBarHeight;
 +(NSInteger)OSMainVersionNumber;
++(UIDeviceOrientation)deviceOrientationForSLResponsiveViewOrientation:(SLResponsiveViewOrientation)orientation;
 +(CGRect)currentApplicationBoundsWithStatusBarShowing:(BOOL)showingStatusBar currentDeviceOrientation:(UIDeviceOrientation)currentOrientation;
 +(CGRect)applicationFrameWithStatusBarShowing:(BOOL)showingStatusBar;
 +(NSString *)nameOfOrientation:(SLResponsiveViewOrientation)orientation;
@@ -139,11 +147,17 @@ typedef enum  SLResponsiveViewConstraintType {
 +(CGSize)sizeOfText:(NSString *)text font:(UIFont *)font constrainedToSize:(CGSize)size;
 +(CGSize)sizeOfText:(NSString *)text withFont:(UIFont *)font;
 +(UIViewAnimationOptions)randomTransitionOption;
++(CGRect) imagePositionInImageView:(UIImageView*)anImageView;
++(UIImage*)captureView:(UIView *)view rectOnScreen:(CGRect)rect;
++(UIImage *)image:(UIImage *)image subRegion:(CGRect)rect;
++(UIImage *)image:(UIImage *)image rotateAngle:(CGFloat)angle;
 #pragma mark - Constraint
 -(SLResponsiveViewConstraint *)addSLConstraint:(SLResponsiveViewConstraintType)type andValue:(CGFloat)value forObject:(UIView *)Subview isContained:(BOOL)isContained byReferencingObject:(UIView *)refView forOrientation:(SLResponsiveViewOrientation)orien forKeyboardStatus:(SLResponsiveViewKeyboardStatus)ks forDeviceType:(SLResponsiveViewDeviceType)dt;
 -(NSArray *)addInnerMarginSLConstraintForSubview:(UIView *)subview margin:(UIEdgeInsets)margin inFullScreenMode:(BOOL)fullScreenMode forOrientation:(SLResponsiveViewOrientation)orien forKeyboardStatus:(SLResponsiveViewKeyboardStatus)ks forDeviceType:(SLResponsiveViewDeviceType)dt;
 -(void)addSLConstraint:(SLResponsiveViewConstraint *)constraint;
 -(void)removeSLConstraintForObject:(UIView *)Subview;
 -(void)removeSLConstraint:(SLResponsiveViewConstraint *)constraint;
+-(void)removeSubview:(UIView *)subview;
 -(void)constraintsApplied;
+-(BOOL)shouldAnimateConstraints;
 @end

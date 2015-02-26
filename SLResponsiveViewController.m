@@ -9,18 +9,20 @@
 #import "SLResponsiveViewController.h"
 #import "SLResponsiveNavigationController.h"
 @interface SLResponsiveViewController ()
-
+@property (nonatomic, weak) UINavigationController *navigationControllerOnTracking;
 @end
 
 @implementation SLResponsiveViewController{
+	BOOL isPopGestureFired;
 }
-@synthesize mainView, enableDefaultAnimationDuringRotation, frame;
+@synthesize mainView, enableDefaultAnimationDuringRotation, frame, navigationControllerOnTracking, orientation;
 - (id)initWithNibName:(NSString *)nibNameOrNil bundle:(NSBundle *)nibBundleOrNil
 {
     self = [super initWithNibName:nibNameOrNil bundle:nibBundleOrNil];
     if (self) {
         // Custom initialization
 		enableDefaultAnimationDuringRotation=YES;
+		isPopGestureFired = NO;
     }
     return self;
 }
@@ -30,6 +32,8 @@
     if(self){
         enableDefaultAnimationDuringRotation=YES;
 		frame = aFrame;
+		isPopGestureFired = NO;
+		orientation = kSLRVOrientationPortraitUp;
     }
     return self;
 }
@@ -42,6 +46,19 @@
 	[super viewDidLoad];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusBarFrameWillChange:) name:UIApplicationWillChangeStatusBarFrameNotification object:nil];
 	[[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(statusBarFrameDidChange:) name:UIApplicationDidChangeStatusBarFrameNotification object:nil];
+	if([SLResponsiveView OSMainVersionNumber] >= 7 && self.navigationController){
+		[self.navigationController.interactivePopGestureRecognizer addTarget:self action:@selector(handlePopGesture:)];
+		isPopGestureFired = NO;
+	}
+	if(self.navigationController){
+		self.navigationControllerOnTracking = self.navigationController;
+		[self.navigationController setNavigationBarHidden:YES];
+	}
+}
+-(void)handlePopGesture:(UIGestureRecognizer *)gesture{
+	if(gesture.state == UIGestureRecognizerStateEnded){
+		isPopGestureFired = YES;
+	}
 }
 #pragma mark - StatusBar appearance and event
 -(CGFloat)currentStatusBarHeight{
@@ -101,14 +118,21 @@
 	[self.view layoutSubviews];
 }
 #pragma mark - View controller lifecycle
+-(void)removeFromParentViewController{
+	[self viewControllerWillBeDestroied];
+	[super removeFromParentViewController];
+}
 -(void)viewControllerWillBeDestroied{
 	[[NSNotificationCenter defaultCenter]removeObserver:self];
+	if([SLResponsiveView OSMainVersionNumber] >= 7 && self.navigationControllerOnTracking){
+		[self.navigationControllerOnTracking.interactivePopGestureRecognizer removeTarget:self action:@selector(handlePopGesture:)];
+	}
+	if(mainView)[mainView viewWillBeDestroyed];
 }
 -(void)viewDidAppear:(BOOL)animated{
     [super viewDidAppear:animated];
     if(mainView)[mainView viewDidAppear];
 	//[self adjustViewFrameAccordingToCurrentStatusBarState];
-
 }
 -(void)viewWillAppear:(BOOL)animated{
 	[super viewWillAppear:animated];
@@ -118,6 +142,7 @@
 		}
 		[mainView viewWillAppear];
 	}
+	isPopGestureFired = NO;
 }
 -(void)viewWillDisappear:(BOOL)animated{
 	[super viewWillDisappear:animated];
@@ -126,6 +151,13 @@
 -(void)viewDidDisappear:(BOOL)animated{
     [super viewDidDisappear:animated];
     if(mainView)[mainView viewDidDisappear];
+	if(isPopGestureFired){
+		[self viewControllerWillBeDestroied];
+	}
+}
+-(void)viewWillUnload{
+	[super viewWillUnload];
+	if(mainView)[mainView viewWillBeDestroyed];
 }
 -(void)setView:(UIView *)aView{
     [super setView:aView];
@@ -143,11 +175,13 @@
 	[super willRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
 	if(!enableDefaultAnimationDuringRotation)[UIView setAnimationsEnabled:NO];
 	else [UIView setAnimationsEnabled:YES];
+	[self.mainView viewControllerWillRotateToInterfaceOrientation:toInterfaceOrientation duration:duration];
 }
 -(void)didRotateFromInterfaceOrientation:(UIInterfaceOrientation)fromInterfaceOrientation{
 	[super didRotateFromInterfaceOrientation:fromInterfaceOrientation];
 	if(!enableDefaultAnimationDuringRotation)[UIView setAnimationsEnabled:NO];
 	else [UIView setAnimationsEnabled:YES];
+	[self.mainView viewControllerDidRotateFromInterfaceOrientation:fromInterfaceOrientation];
 }
 -(BOOL)shouldAutorotateToInterfaceOrientation:(UIInterfaceOrientation)toInterfaceOrientation{
     // for iOS 5
@@ -161,6 +195,13 @@
 }
 -(BOOL)shouldAutorotate{
 	return YES;
+}
+-(void)viewDidLayoutSubviews{
+	[super viewDidLayoutSubviews];
+	[self.mainView viewControllerDidLayoutSubviews];
+}
+-(void)deviceRotatedToOrientation:(SLResponsiveViewOrientation)targetOrientation{
+
 }
 #pragma mark - View Lifecycle
 -(UIViewController *)rootViewController{
@@ -260,7 +301,7 @@
 		}
 	}
 }
--(void)popToPreviousViewControllerAnimated:(BOOL)animated{
+-(void)popToPreviousViewControllerAndShowNewController:(UIViewController *)newVC byPresent:(BOOL)present orPush:(BOOL)push animated:(BOOL)animated{
 	if(self.navigationController && [self.navigationController.viewControllers containsObject:self]){
 		UIViewController *vc=nil;
 		NSInteger index=[self.navigationController.viewControllers indexOfObject:self];
@@ -273,7 +314,19 @@
 					[self.mainView viewWillBeDestroyed];
 				}
 				[vc.navigationController popToViewController:vc animated:animated];
+				if(newVC){
+					if(present){
+						[vc presentViewController:newVC animated:animated completion:nil];
+					}else if(push){
+						[vc.navigationController pushViewController:newVC animated:animated];
+					}
+				}
 			}
+		}else{
+			SLResponsiveNavigationController *nc =(SLResponsiveNavigationController*) self.navigationController;
+			[self viewControllerWillBeDestroied];
+			[nc popViewControllerAnimated:YES];
+			[nc pushViewController:newVC animated:animated];
 		}
 	}else{
 		UIViewController *vc=self.presentingViewController;
@@ -285,9 +338,25 @@
 				[self transferGlobalInstancesFromView:self.mainView toView:((SLResponsiveViewController *)vc).mainView];
 			}
 			[self.mainView viewWillBeDestroyed];
-			[self.presentingViewController dismissViewControllerAnimated:animated completion:nil];
+			[vc dismissViewControllerAnimated:animated completion:nil];
+			if(newVC){
+				if(present){
+					[vc presentViewController:newVC animated:animated completion:nil];
+				}else if(push){
+					[vc.navigationController pushViewController:newVC animated:animated];
+				}
+			}
 		}
 	}
+}
+-(void)popToPreviousViewControllerAndPushNewController:(UIViewController *)vc animated:(BOOL)animated{
+	[self popToPreviousViewControllerAndShowNewController:vc byPresent:NO orPush:YES animated:animated];
+}
+-(void)popToPreviousViewControllerAndPresentNewController:(UIViewController *)vc animated:(BOOL)animated{
+	[self popToPreviousViewControllerAndShowNewController:vc byPresent:YES orPush:NO animated:animated];
+}
+-(void)popToPreviousViewControllerAnimated:(BOOL)animated{
+	[self popToPreviousViewControllerAndShowNewController:nil byPresent:NO orPush:NO animated:animated];
 }
 -(UIViewController *)popToRootViewControllerAnimated:(BOOL)animated{
 	UIViewController *rootVC=self.rootViewController;
