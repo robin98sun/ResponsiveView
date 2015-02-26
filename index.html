@@ -51,6 +51,28 @@ view hierarchy and component lifecycle are managed automatically. </p>
 <p><code>author</code>    <a href="https://www.facebook.com/mrsunlin">https://www.facebook.com/mrsunlin</a></p>
 
 <h1>
+<a id="update-for-ios8" class="anchor" href="#update-for-ios8" aria-hidden="true"><span class="octicon octicon-link"></span></a>Update for iOS8</h1>
+
+<h2>
+<a id="1-required-addtional-step-for-compitable-with-ios8" class="anchor" href="#1-required-addtional-step-for-compitable-with-ios8" aria-hidden="true"><span class="octicon octicon-link"></span></a>1. Required addtional step for compitable with iOS8</h2>
+
+<p>In <code>YourAppDelege.m</code> file, <code>-(BOOL)application:didFinishLaunchingWithOptions:</code> method, add the following line:</p>
+
+<pre><code>[SLResponsiveView storeScreenBounds];
+</code></pre>
+
+<h2>
+<a id="2-when-presenting-in-line-custom-view" class="anchor" href="#2-when-presenting-in-line-custom-view" aria-hidden="true"><span class="octicon octicon-link"></span></a>2. When presenting in-line custom view</h2>
+
+<p>The method <code>-(void)viewWillAppear</code> of that view instance should be invoked at the end of the construction procedure.</p>
+
+<pre><code>ResponsiveView *view = ... ; // Your custom view constructor code here
+[self addSubview: view];
+[self addSLConstraint: ... ]; // Set constraints for the custom view
+[view viewWillAppear];       // This line is required in iOS8
+</code></pre>
+
+<h1>
 <a id="how-to-use" class="anchor" href="#how-to-use" aria-hidden="true"><span class="octicon octicon-link"></span></a>How to use</h1>
 
 <h2>
