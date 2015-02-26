@@ -25,7 +25,9 @@ In `YourAppDelege.m` file, `-(BOOL)application:didFinishLaunchingWithOptions:` m
 
     [SLResponsiveView storeScreenBounds];
 
-## 2. When presenting in-line custom view, the method `-(void)viewWillAppear` of that view instance should be invoked at the end of the construction procedure.
+## 2. When presenting in-line custom view
+
+The method `-(void)viewWillAppear` of that view instance should be invoked at the end of the construction procedure.
 
     ResponsiveView *view = ... ; // Your custom view constructor code here
     [self addSubview: view];
